@@ -24,6 +24,7 @@ export interface RuntimeManifest {
   model?: string;
   provider?: string;
   character: string;
+  characterCard?: string;
   systemPromptHash: string;
   harnessVersion: string;
   createdAt: string;
@@ -57,6 +58,7 @@ export interface SavePaths {
   root: string;
   piSession: string;
   world: string;
+  character: string;
   manifest: string;
   meta: string;
 }

@@ -1,6 +1,6 @@
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { copyFile, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { loadCharacter } from "./character.ts";
+import { loadCharacterFile, resolveCharacterFile } from "./character.ts";
 import { git, requireGit } from "./git.ts";
 import { composeSystemPrompt, hashSystemPrompt } from "./prompt.ts";
 import { ensureAppDirs, ensureDir, exists, getSavePaths, makeSaveId } from "./paths.ts";
@@ -51,8 +51,8 @@ async function initGitRepo(saveRoot: string): Promise<void> {
 
 export async function createSave(app: AppPaths, options: CreateSaveOptions): Promise<{ paths: ReturnType<typeof getSavePaths>; meta: SaveMeta }> {
   await initializeAppHome(app);
-  const characterSource = exists(path.resolve(options.character)) ? path.resolve(options.character) : options.character;
-  const character = await loadCharacter(app.characters, characterSource);
+  const characterSource = resolveCharacterFile(app.characters, options.character);
+  const character = await loadCharacterFile(characterSource);
   const saveId = options.saveId || makeSaveId(character.name);
   const saveRoot = path.join(app.saves, saveId);
   if (exists(saveRoot)) throw new Error(`Save already exists: ${saveId}`);
@@ -70,6 +70,7 @@ export async function createSave(app: AppPaths, options: CreateSaveOptions): Pro
     model: options.model,
     provider: options.provider,
     character: character.name,
+    characterCard: "character.json",
     systemPromptHash: hashSystemPrompt(prompt),
     harnessVersion: HARNESS_VERSION,
     createdAt: now,
@@ -77,13 +78,14 @@ export async function createSave(app: AppPaths, options: CreateSaveOptions): Pro
   };
   const meta: SaveMeta = {
     id: saveId,
-    character: characterSource,
+    character: character.name,
     createdAt: now,
     updatedAt: now,
     currentBranch: "main",
     turns: [],
   };
 
+  await copyFile(characterSource, save.character);
   await writeFile(
     path.join(save.world, "memory.md"),
     `# Session Memory\n\nThis file is persistent, editable memory for the roleplay session. Keep it concise and useful.\n\n## Character\n${character.name}\n\n${
@@ -103,7 +105,7 @@ export async function createSave(app: AppPaths, options: CreateSaveOptions): Pro
   await writeJson(save.meta, meta);
 
   await initGitRepo(save.root);
-  await requireGit(save.root, ["add", ".gitignore", "manifest.json", "meta.json", "world", "pi-session"]);
+  await requireGit(save.root, ["add", ".gitignore", "character.json", "manifest.json", "meta.json", "world", "pi-session"]);
   await requireGit(save.root, ["commit", "-m", "turn 0: initialize pi-tavern save"]);
 
   return { paths: save, meta };
@@ -142,7 +144,7 @@ export function resolveSaveRoot(app: AppPaths, saveIdOrPath: string): string {
 
 export async function updateManifestForLaunch(
   saveRoot: string,
-  patch: Partial<Pick<RuntimeManifest, "model" | "provider" | "systemPromptHash">>,
+  patch: Partial<Pick<RuntimeManifest, "model" | "provider" | "characterCard" | "systemPromptHash">>,
 ): Promise<void> {
   const save = getSavePaths(saveRoot);
   const current = exists(save.manifest)
@@ -156,7 +158,7 @@ export async function updateManifestForLaunch(
     createdAt: current.createdAt ?? new Date().toISOString(),
     ...filteredPatch,
   };
-  const changed = (["character", "harnessVersion", "createdAt", "model", "provider", "systemPromptHash"] as const).some(
+  const changed = (["character", "harnessVersion", "createdAt", "model", "provider", "characterCard", "systemPromptHash"] as const).some(
     (key) => candidate[key] !== current[key],
   );
   if (!changed) return;

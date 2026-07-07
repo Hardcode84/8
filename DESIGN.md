@@ -15,7 +15,7 @@ Core requirements:
 - File tools must be limited to the session directory.
 - Capture directory state after each turn.
 - Rollback to previous turns restores both conversation state and directory state.
-- Support character cards eventually; start with a small, explicit format.
+- Support Character Card V2 JSON as the MVP character format.
 
 ## High-Level Shape
 
@@ -33,6 +33,7 @@ pi-tavern
 │           ├── .git/            # turn history and branches
 │           ├── pi-session/      # committed Pi JSONL session file(s)
 │           ├── world/           # agent-visible working directory
+│           ├── character.json   # snapshotted Character Card V2 JSON
 │           ├── manifest.json    # sanitized runtime metadata
 │           └── meta.json
 └── terminal UI
@@ -185,11 +186,12 @@ saves/<save-id>/
 │   ├── lore/
 │   ├── notes/
 │   └── artifacts/
+├── character.json
 ├── manifest.json
 └── meta.json
 ```
 
-`world/` is the only filesystem area the agent can see or modify. `pi-session/`, `.git/`, `manifest.json`, and `meta.json` are harness-owned and blocked from agent tools by default.
+`world/` is the only filesystem area the agent can see or modify. `pi-session/`, `.git/`, `character.json`, `manifest.json`, and `meta.json` are harness-owned and blocked from agent tools by default.
 
 Recommended initial files:
 
@@ -254,10 +256,10 @@ Lifecycle:
 2. User submits input.
 3. Harness verifies dirty files are only in allowed save paths.
 4. Pi persists the user message into `pi-session/`.
-5. Before the provider request starts, harness commits `pi-session/`, `world/`, `manifest.json`, and `meta.json` as a **user commit**.
+5. Before the provider request starts, harness commits `pi-session/`, `world/`, `character.json`, `manifest.json`, and `meta.json` as a **user commit**.
 6. Pi streams assistant text and tool events.
 7. Tool guard validates every file operation.
-8. When the assistant finishes the full response, harness commits `pi-session/`, `world/`, `manifest.json`, and `meta.json` as an **assistant commit**.
+8. When the assistant finishes the full response, harness commits `pi-session/`, `world/`, `character.json`, `manifest.json`, and `meta.json` as an **assistant commit**.
 9. The new git commit is the current turn id/checkpoint.
 
 Implementation note: with Pi SDK events, the user commit should happen after the user `message_end` has been persisted and before the first provider request. A practical hook is the first `turn_start` for a prompt (`turnIndex === 0`), because the user message is already in the session and the LLM call has not started yet. The assistant commit should happen on `agent_end`, not every internal Pi `turn_end`, so a tool-using response is captured as one assistant turn. If queued/steering messages are supported later, commit them when they are actually delivered into the conversation, not merely when queued.
@@ -342,6 +344,7 @@ app-data/
     ├── pi-session/
     │   └── session.jsonl     # committed
     ├── world/                # committed
+    ├── character.json        # committed snapshotted card
     └── meta.json             # committed
 ```
 
@@ -382,7 +385,7 @@ Never commit API keys, OAuth tokens, package caches, debug logs, or arbitrary Pi
 - Commit initial character/world/session seed as `turn 0`.
 - Commit on user submission after the user message is persisted and before the LLM request starts.
 - Commit again when the assistant finishes its full response.
-- Commit all changed save files: `pi-session/`, `world/`, `manifest.json`, and `meta.json`.
+- Commit all changed save files: `pi-session/`, `world/`, `character.json`, `manifest.json`, and `meta.json`.
 - Commit message should include the speaker role and Pi leaf entry id.
 - The commit hash is the canonical turn id.
 - Store `commitHash -> { role, piLeaf }` in `meta.json`, or derive it from commit metadata.

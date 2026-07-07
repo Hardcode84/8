@@ -11,7 +11,7 @@ const MAX_LIST_LIMIT = 2000;
 const MAX_GREP_LIMIT = 500;
 const MAX_FIND_LIMIT = 2000;
 
-const ALLOWED_SAVE_PATHS = ["pi-session", "world", "manifest.json", "meta.json", ".gitignore"];
+const ALLOWED_SAVE_PATHS = ["pi-session", "world", "character.json", "manifest.json", "meta.json", ".gitignore"];
 
 let internalSessionSwitch = false;
 let committing = false;
@@ -205,7 +205,7 @@ async function commitTurn(pi: any, ctx: any, role: "user" | "assistant" | "contr
       return;
     }
 
-    await gitRequired(pi, p.save, ["add", "--", "pi-session", "world", "manifest.json", "meta.json", ".gitignore"]);
+    await gitRequired(pi, p.save, ["add", "--", "pi-session", "world", "character.json", "manifest.json", "meta.json", ".gitignore"]);
     const hasChanges = await git(pi, p.save, ["diff", "--cached", "--quiet", "--exit-code"]);
     if (hasChanges.code === 0) return;
 

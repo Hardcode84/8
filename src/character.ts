@@ -67,7 +67,7 @@ function candidateFiles(charactersDir: string, nameOrPath: string): string[] {
   return candidates;
 }
 
-export async function loadCharacter(charactersDir: string, nameOrPath: string): Promise<CharacterCard> {
+export function resolveCharacterFile(charactersDir: string, nameOrPath: string): string {
   const file = candidateFiles(charactersDir, nameOrPath).find(exists);
   if (!file) {
     throw new Error(`Character not found: ${nameOrPath}\nLooked in ${charactersDir} and ${bundledCharactersDir}`);
@@ -75,10 +75,17 @@ export async function loadCharacter(charactersDir: string, nameOrPath: string): 
   if (!/\.json$/i.test(file)) {
     throw new Error(`Unsupported character file: ${file}\npi-tavern currently supports only Character Card V2 JSON files.`);
   }
+  return file;
+}
 
+export async function loadCharacterFile(file: string): Promise<CharacterCard> {
   const text = await readFile(file, "utf8");
   const fallback = path.basename(file).replace(/\.json$/i, "");
   return normalizeV2Card(JSON.parse(text) as Record<string, unknown>, fallback);
+}
+
+export async function loadCharacter(charactersDir: string, nameOrPath: string): Promise<CharacterCard> {
+  return await loadCharacterFile(resolveCharacterFile(charactersDir, nameOrPath));
 }
 
 async function listJsonCards(dir: string): Promise<string[]> {

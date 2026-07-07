@@ -101,13 +101,15 @@ async function launchSave(appRoot: ReturnType<typeof getAppPaths>, saveIdOrPath:
   const meta = await readSaveMeta(saveRoot);
   if (!meta) throw new Error(`Missing meta.json in save: ${saveRoot}`);
 
-  const character = await loadCharacter(appRoot.characters, meta.character);
+  const characterSource = exists(save.character) ? save.character : meta.character;
+  const character = await loadCharacter(appRoot.characters, characterSource);
   const prompt = composeSystemPrompt(character, { saveId: meta.id, worldDir: save.world });
   const model = flagString(flags, "model", process.env.PI_TAVERN_MODEL);
   const provider = flagString(flags, "provider", process.env.PI_TAVERN_PROVIDER);
   await updateManifestForLaunch(save.root, {
     model,
     provider,
+    characterCard: exists(save.character) ? "character.json" : undefined,
     systemPromptHash: hashSystemPrompt(prompt),
   });
 
@@ -143,7 +145,7 @@ async function launchSave(appRoot: ReturnType<typeof getAppPaths>, saveIdOrPath:
     PI_TAVERN_SAVE_ROOT: save.root,
     PI_TAVERN_WORLD_DIR: save.world,
     PI_TAVERN_SAVE_ID: meta.id,
-    PI_TAVERN_CHARACTER: meta.character,
+    PI_TAVERN_CHARACTER: character.name,
     PI_TAVERN_MANIFEST_PATH: save.manifest,
     PI_TAVERN_META_PATH: save.meta,
     PI_SKIP_VERSION_CHECK: process.env.PI_SKIP_VERSION_CHECK ?? "1",

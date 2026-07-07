@@ -33,6 +33,7 @@ export function getSavePaths(saveRoot: string): SavePaths {
     root,
     piSession: path.join(root, "pi-session"),
     world: path.join(root, "world"),
+    character: path.join(root, "character.json"),
     manifest: path.join(root, "manifest.json"),
     meta: path.join(root, "meta.json"),
   };

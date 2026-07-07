@@ -10,6 +10,14 @@ bun run bin/pi-tavern new alice --model openrouter/anthropic/claude-sonnet-4
 
 The repo includes `characters/alice.json`, a basic SillyTavern Character Card V2 JSON (`spec: "chara_card_v2"`). Bundled cards can be referenced by name. For now, pi-tavern only supports Character Card V2 JSON; pass your own card path or place `.json` cards in the app-data `characters/` directory.
 
+Run with a card anywhere on your filesystem:
+
+```bash
+bun run bin/pi-tavern new ~/Downloads/my-character.json --model openrouter/anthropic/claude-sonnet-4
+```
+
+When a save is created, pi-tavern snapshots the resolved character card into the save repo as `character.json`, so resuming the save does not depend on the original card path still existing.
+
 Useful commands:
 
 ```bash
@@ -60,6 +68,7 @@ Each save is a git repository containing:
 
 - `pi-session/` — Pi JSONL session files
 - `world/` — the only agent-visible filesystem area
+- `character.json` — snapshotted Character Card V2 JSON
 - `manifest.json`
 - `meta.json`
 
