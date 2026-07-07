@@ -446,7 +446,10 @@ Pi does not have a single built-in `/regenerate` command. In stock Pi, the close
 
 MVP uses **SillyTavern Character Card V2 JSON** as the primary and only supported character format.
 
-Bundled example: `characters/alice.json` with `spec: "chara_card_v2"`.
+Bundled examples:
+
+- `characters/alice.json` — roleplay example with `spec: "chara_card_v2"`
+- `characters/card-creator.json` — utility assistant for creating new V2 cards
 
 Supported V2 fields for prompt composition:
 
