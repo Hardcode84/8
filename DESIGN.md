@@ -182,10 +182,7 @@ saves/<save-id>/
 ├── pi-session/
 │   └── <pi-session>.jsonl
 ├── world/
-│   ├── memory.md
-│   ├── lore/
-│   ├── notes/
-│   └── artifacts/
+│   └── memory.md
 ├── character.json
 ├── manifest.json
 └── meta.json
@@ -196,9 +193,8 @@ saves/<save-id>/
 Recommended initial files:
 
 - `memory.md` — persistent session memory, editable by agent
-- `lore/` — user-provided lore files
-- `notes/` — agent/user notes
-- `artifacts/` — generated files, letters, maps, logs, etc.
+
+The agent may create additional files in `world/` only when the user asks for persistent notes or artifacts.
 
 ## Safe Tool Policy
 

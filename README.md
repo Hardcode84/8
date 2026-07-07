@@ -105,7 +105,7 @@ Default app data root is `$PI_TAVERN_HOME`, then `$XDG_DATA_HOME/pi-tavern`, the
 Each save is a git repository containing:
 
 - `pi-session/` — Pi JSONL session files
-- `world/` — the only agent-visible filesystem area
+- `world/` — the only agent-visible filesystem area; starts with only `memory.md`
 - `character.json` — snapshotted Character Card V2 JSON
 - `manifest.json`
 - `meta.json`

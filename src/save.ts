@@ -60,9 +60,6 @@ export async function createSave(app: AppPaths, options: CreateSaveOptions): Pro
   const save = getSavePaths(saveRoot);
   await ensureDir(save.piSession);
   await ensureDir(save.world);
-  await ensureDir(path.join(save.world, "lore"));
-  await ensureDir(path.join(save.world, "notes"));
-  await ensureDir(path.join(save.world, "artifacts"));
 
   const now = new Date().toISOString();
   const prompt = composeSystemPrompt(character, { saveId, worldDir: save.world });
@@ -93,9 +90,6 @@ export async function createSave(app: AppPaths, options: CreateSaveOptions): Pro
     }${character.first_message ? `## Opening\n${character.first_message.trim()}\n` : ""}`,
     "utf8",
   );
-  await writeFile(path.join(save.world, "lore", ".gitkeep"), "", "utf8");
-  await writeFile(path.join(save.world, "notes", ".gitkeep"), "", "utf8");
-  await writeFile(path.join(save.world, "artifacts", ".gitkeep"), "", "utf8");
   await writeFile(
     path.join(save.root, ".gitignore"),
     `# pi-tavern save repository\n.DS_Store\n*.tmp\n`,
