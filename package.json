@@ -1,0 +1,23 @@
+{
+  "name": "pi-tavern",
+  "version": "0.1.0",
+  "description": "Terminal roleplaying harness on top of Pi's agent runtime",
+  "type": "module",
+  "bin": {
+    "pi-tavern": "./bin/pi-tavern"
+  },
+  "scripts": {
+    "start": "bun run bin/pi-tavern",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.3"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
