@@ -18,6 +18,28 @@ bun run bin/pi-tavern saves
 bun run bin/pi-tavern launch <save-id>
 ```
 
+## Returning to an existing session
+
+List saves:
+
+```bash
+bun run bin/pi-tavern saves
+```
+
+Launch a specific save:
+
+```bash
+bun run bin/pi-tavern launch <save-id>
+```
+
+If it is the latest or only save, launch without an id:
+
+```bash
+bun run bin/pi-tavern launch
+```
+
+Inside the session, `/rp-status` shows the current save, branch, and commit.
+
 Inside Pi, pi-tavern adds `/rp-*` commands:
 
 - `/rp-new` / `/rp-load` / `/rp-saves`
