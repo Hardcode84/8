@@ -26,6 +26,33 @@ bun run bin/pi-tavern saves
 bun run bin/pi-tavern launch <save-id>
 ```
 
+## Save commands
+
+```bash
+# Create a new save from a bundled or app-data card name
+bun run bin/pi-tavern new alice
+
+# Create a new save from a card anywhere on disk
+bun run bin/pi-tavern new /path/to/character-card.json
+
+# List saves
+bun run bin/pi-tavern saves
+
+# Launch the latest/only save
+bun run bin/pi-tavern launch
+
+# Launch a specific save
+bun run bin/pi-tavern launch <save-id>
+
+# Delete a save, with confirmation
+bun run bin/pi-tavern delete <save-id>
+
+# Delete non-interactively
+bun run bin/pi-tavern delete <save-id> --yes
+```
+
+Aliases: `load`/`run` for `launch`; `list` for `saves`; `remove`/`rm` for `delete`.
+
 ## Returning to an existing session
 
 List saves:

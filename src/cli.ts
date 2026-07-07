@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { readFile } from "node:fs/promises";
+import { lstat, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { listCharacters, loadCharacter } from "./character.ts";
 import { composeSystemPrompt, hashSystemPrompt } from "./prompt.ts";
 import { createSave, initializeAppHome, listSaves, readSaveMeta, resolveSaveRoot, updateManifestForLaunch } from "./save.ts";
-import { displayPath, exists, fromHere, getAppPaths, getSavePaths } from "./paths.ts";
+import { displayPath, exists, fromHere, getAppPaths, getSavePaths, isInside } from "./paths.ts";
 import { ALLOWED_TOOLS } from "./types.ts";
 
 interface ParsedArgs {
@@ -51,6 +51,7 @@ function usage(): string {
 Usage:
   pi-tavern new <character> [--save-id <id>] [--model <model>] [--provider <provider>] [--no-launch]
   pi-tavern launch [save-id] [--model <model>] [--provider <provider>]
+  pi-tavern delete [save-id] [--yes]
   pi-tavern saves
   pi-tavern characters
   pi-tavern compose-system-prompt <character>
@@ -179,6 +180,62 @@ async function printSaves(appRoot: ReturnType<typeof getAppPaths>): Promise<void
   }
 }
 
+async function resolveDeletableSaveRoot(appRoot: ReturnType<typeof getAppPaths>, saveIdOrPath: string): Promise<string> {
+  const byId = path.join(appRoot.saves, saveIdOrPath);
+  const direct = path.resolve(saveIdOrPath);
+  const saveRoot = exists(byId) ? byId : direct;
+  const resolvedSaveRoot = path.resolve(saveRoot);
+  const resolvedSavesRoot = path.resolve(appRoot.saves);
+
+  if (resolvedSaveRoot === resolvedSavesRoot || !isInside(resolvedSavesRoot, resolvedSaveRoot)) {
+    throw new Error(`Refusing to delete outside saves directory: ${displayPath(resolvedSaveRoot)}`);
+  }
+  if (!exists(resolvedSaveRoot)) throw new Error(`Save not found: ${saveIdOrPath}`);
+
+  const info = await lstat(resolvedSaveRoot);
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error(`Refusing to delete non-directory or symlink save path: ${displayPath(resolvedSaveRoot)}`);
+  }
+  if (!exists(path.join(resolvedSaveRoot, "meta.json")) || !exists(path.join(resolvedSaveRoot, "world"))) {
+    throw new Error(`Refusing to delete path that does not look like a pi-tavern save: ${displayPath(resolvedSaveRoot)}`);
+  }
+
+  return resolvedSaveRoot;
+}
+
+async function deleteSaveCommand(
+  appRoot: ReturnType<typeof getAppPaths>,
+  saveIdOrPath: string | undefined,
+  flags: Record<string, string | boolean>,
+): Promise<void> {
+  await initializeAppHome(appRoot);
+  const selected = saveIdOrPath || (await chooseSave(appRoot));
+  if (!selected) throw new Error("No save selected");
+
+  const saveRoot = await resolveDeletableSaveRoot(appRoot, selected);
+  const meta = await readSaveMeta(saveRoot);
+  const saveId = meta?.id ?? path.basename(saveRoot);
+
+  if (!flags.yes && !flags.y) {
+    if (!process.stdin.isTTY) throw new Error(`Refusing to delete ${saveId} without --yes in non-interactive mode`);
+    const rl = createInterface({ input, output });
+    try {
+      console.log(`About to permanently delete save: ${saveId}`);
+      console.log(`Path: ${displayPath(saveRoot)}`);
+      const answer = await rl.question(`Type the save id (${saveId}) to confirm: `);
+      if (answer.trim() !== saveId) {
+        console.log("Delete cancelled.");
+        return;
+      }
+    } finally {
+      rl.close();
+    }
+  }
+
+  await rm(saveRoot, { recursive: true, force: false });
+  console.log(`Deleted save ${saveId}`);
+}
+
 async function printCharacters(appRoot: ReturnType<typeof getAppPaths>): Promise<void> {
   await initializeAppHome(appRoot);
   const characters = await listCharacters(appRoot.characters);
@@ -219,6 +276,12 @@ export async function main(argv: string[]): Promise<void> {
       case "saves":
       case "list":
         await printSaves(appRoot);
+        return;
+
+      case "delete":
+      case "remove":
+      case "rm":
+        await deleteSaveCommand(appRoot, rest[0], parsed.flags);
         return;
 
       case "compose-system-prompt": {
