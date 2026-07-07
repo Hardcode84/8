@@ -3,7 +3,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { listCharacters, loadCharacter, writeExampleCharacter } from "./character.ts";
+import { listCharacters, loadCharacter } from "./character.ts";
 import { composeSystemPrompt, hashSystemPrompt } from "./prompt.ts";
 import { createSave, initializeAppHome, listSaves, readSaveMeta, resolveSaveRoot, updateManifestForLaunch } from "./save.ts";
 import { displayPath, exists, fromHere, getAppPaths, getSavePaths } from "./paths.ts";
@@ -53,7 +53,6 @@ Usage:
   pi-tavern launch [save-id] [--model <model>] [--provider <provider>]
   pi-tavern saves
   pi-tavern characters
-  pi-tavern init-example-character
   pi-tavern compose-system-prompt <character>
   pi-tavern paths
 
@@ -183,7 +182,7 @@ async function printCharacters(appRoot: ReturnType<typeof getAppPaths>): Promise
   const characters = await listCharacters(appRoot.characters);
   if (characters.length === 0) {
     console.log(`No characters found in ${displayPath(appRoot.characters)}.`);
-    console.log("Create one with: pi-tavern init-example-character");
+    console.log("Pass a card path directly, e.g. pi-tavern new ./characters/alice.json");
     return;
   }
   characters.forEach((name) => console.log(name));
@@ -209,13 +208,6 @@ export async function main(argv: string[]): Promise<void> {
         console.log(`characters\t${displayPath(appRoot.characters)}`);
         console.log(`saves\t${displayPath(appRoot.saves)}`);
         return;
-
-      case "init-example-character": {
-        await initializeAppHome(appRoot);
-        const file = await writeExampleCharacter(appRoot.characters);
-        console.log(`Wrote ${displayPath(file)}`);
-        return;
-      }
 
       case "characters":
       case "chars":

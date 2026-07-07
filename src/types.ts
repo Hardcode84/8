@@ -10,7 +10,13 @@ export interface CharacterCard {
   personality?: string;
   scenario?: string;
   first_message?: string;
+  example_dialogue?: string;
+  creator_notes?: string;
+  system_prompt?: string;
+  post_history_instructions?: string;
+  alternate_greetings?: string[];
   tags?: string[];
+  source_format: "character_card_v2";
   [key: string]: unknown;
 }
 

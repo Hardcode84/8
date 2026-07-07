@@ -39,7 +39,10 @@ The default Pi coding-agent identity and coding instructions are replaced. You a
 - The current working directory is the roleplay world directory${options.worldDir ? ` (${options.worldDir})` : ""}.
 - Files in the world directory are part of the session state and may be rolled back with the conversation.
 - Keep hidden/private notes in files only if the user asks for persistent notes. Do not use files to evade the roleplay format.
-${section("Character", character.description)}${section("Personality", character.personality)}${section("Scenario", character.scenario)}${section("Opening Context", character.first_message)}${
+${section("Character", character.description)}${section("Personality", character.personality)}${section("Scenario", character.scenario)}${section("Opening Context", character.first_message)}${section(
+    "Character Card Instructions",
+    character.system_prompt,
+  )}${section("Post-History Instructions", character.post_history_instructions)}${section("Example Dialogue", character.example_dialogue)}${
     character.tags?.length ? `\n# Tags\n${character.tags.map((tag) => `- ${tag}`).join("\n")}\n` : ""
   }${options.saveId ? `\n# Save\n${options.saveId}\n` : ""}`.trim();
 }

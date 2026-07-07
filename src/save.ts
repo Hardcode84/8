@@ -51,7 +51,8 @@ async function initGitRepo(saveRoot: string): Promise<void> {
 
 export async function createSave(app: AppPaths, options: CreateSaveOptions): Promise<{ paths: ReturnType<typeof getSavePaths>; meta: SaveMeta }> {
   await initializeAppHome(app);
-  const character = await loadCharacter(app.characters, options.character);
+  const characterSource = exists(path.resolve(options.character)) ? path.resolve(options.character) : options.character;
+  const character = await loadCharacter(app.characters, characterSource);
   const saveId = options.saveId || makeSaveId(character.name);
   const saveRoot = path.join(app.saves, saveId);
   if (exists(saveRoot)) throw new Error(`Save already exists: ${saveId}`);
@@ -76,7 +77,7 @@ export async function createSave(app: AppPaths, options: CreateSaveOptions): Pro
   };
   const meta: SaveMeta = {
     id: saveId,
-    character: options.character,
+    character: characterSource,
     createdAt: now,
     updatedAt: now,
     currentBranch: "main",

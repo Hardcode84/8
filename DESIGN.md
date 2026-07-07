@@ -27,7 +27,7 @@ pi-tavern
 │   │   ├── auth.json            # optional; env/api-key also OK
 │   │   └── settings.json
 │   ├── characters/
-│   │   └── alice.yaml
+│   │   └── alice.json          # Character Card V2 JSON
 │   └── saves/
 │       └── <save-id>/
 │           ├── .git/            # turn history and branches
@@ -133,7 +133,7 @@ pi-tavern/
 │   ├── extension.ts        # Pi extension: commands, hooks, tool guards
 │   ├── git.ts              # git helpers
 │   ├── paths.ts            # safe path resolution
-│   ├── character.ts        # YAML/card loading
+│   ├── character.ts        # Character Card V2 JSON loading
 │   └── prompt.ts           # system prompt composition
 └── bin/
     └── pi-tavern
@@ -441,35 +441,32 @@ Pi does not have a single built-in `/regenerate` command. In stock Pi, the close
 
 ## Character Cards
 
-Support surface is TBD. Start small with a harness-native YAML/JSON format.
+MVP uses **SillyTavern Character Card V2 JSON** as the primary and only supported character format.
 
-MVP `characters/alice.yaml`:
+Bundled example: `characters/alice.json` with `spec: "chara_card_v2"`.
 
-```yaml
-name: Alice
-version: 1
-description: |
-  Alice is a curious archivist who speaks precisely and warmly.
-personality: |
-  Patient, observant, dry humor.
-scenario: |
-  The user arrives at an old library during a thunderstorm.
-first_message: |
-  The bell above the library door trembles as you step inside...
-tags:
-  - fantasy
-  - librarian
-```
+Supported V2 fields for prompt composition:
 
-Later imports:
+- `data.name`
+- `data.description`
+- `data.personality`
+- `data.scenario`
+- `data.first_mes`
+- `data.mes_example`
+- `data.system_prompt`
+- `data.post_history_instructions`
+- `data.alternate_greetings`
+- `data.tags`
+- `data.character_version`
 
-- SillyTavern / TavernAI character cards
+Non-goals for initial card support:
+
 - PNG metadata cards
 - lorebooks
-- example dialogues
-- alternate greetings
+- full extension metadata behavior
+- non-V2 or harness-native YAML formats
 
-For MVP, character loading only needs to produce prompt sections and opening message.
+For MVP, character loading only needs to produce prompt sections and opening message from V2 JSON.
 
 ## Terminal UX Sketch
 
@@ -504,7 +501,7 @@ MVP should include:
 - native Pi TUI launched by harness wrapper
 - isolated Pi home
 - custom system prompt via CLI, with Pi context/resources disabled
-- one character YAML format
+- one Character Card V2 JSON format
 - one save/session directory layout
 - safe file tools limited to `world/`
 - no `bash`

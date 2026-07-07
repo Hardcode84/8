@@ -5,9 +5,10 @@ Terminal roleplaying harness on top of Pi's native TUI.
 ## Quick start
 
 ```bash
-bun run bin/pi-tavern init-example-character
 bun run bin/pi-tavern new alice --model openrouter/anthropic/claude-sonnet-4
 ```
+
+The repo includes `characters/alice.json`, a basic SillyTavern Character Card V2 JSON (`spec: "chara_card_v2"`). Bundled cards can be referenced by name. For now, pi-tavern only supports Character Card V2 JSON; pass your own card path or place `.json` cards in the app-data `characters/` directory.
 
 Useful commands:
 
