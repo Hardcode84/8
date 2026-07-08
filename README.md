@@ -86,6 +86,12 @@ bun run bin/pi-tavern launch
 
 Inside the session, `/rp-status` shows the current save, branch, and commit.
 
+## Character state and world files
+
+Characters can maintain persistent state by reading and writing files in the save's sandboxed `world/` directory. New saves start with `world/memory.md`; characters may update it for durable memory, inventory, scene state, campaign notes, or other card-specific tracking.
+
+The assistant's file tools are constrained to `world/`. It cannot access the save repo metadata, Pi session files, the snapshotted `character.json`, or arbitrary filesystem paths. Any world-file changes are committed alongside the conversation at each turn, so rollback restores both transcript and character/world state.
+
 Inside Pi, pi-tavern adds `/rp-*` commands:
 
 - `/rp-new` / `/rp-load` / `/rp-saves`
