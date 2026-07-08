@@ -5,6 +5,7 @@ import { ALLOWED_TOOLS, HARNESS_VERSION, type SaveMeta, type TurnMeta } from "./
 
 const STATUS_KEY = "pi-tavern";
 const TOOL_STATUS_KEY = "pi-tavern-tool";
+const REGENERATE_CUSTOM_TYPE = "pi-tavern-regenerate";
 const DEFAULT_MAX_WRITE_BYTES = 256 * 1024;
 const MAX_READ_LIMIT = 2000;
 const MAX_LIST_LIMIT = 2000;
@@ -15,6 +16,7 @@ const ALLOWED_SAVE_PATHS = ["pi-session", "world", "character.json", "manifest.j
 
 let internalSessionSwitch = false;
 let committing = false;
+let pendingRegenerateControlEntryId: string | undefined;
 
 function envPath(name: string, fallback: string): string {
   return path.resolve(process.env[name] || fallback);
@@ -165,9 +167,36 @@ function defaultMeta(p: ReturnType<typeof paths>): SaveMeta {
   };
 }
 
-function leafLooksControl(ctx: any): boolean {
+function getRegenerateControlLeaf(ctx: any): any | undefined {
   const leaf = typeof ctx.sessionManager?.getLeafEntry === "function" ? ctx.sessionManager.getLeafEntry() : undefined;
-  return leaf?.type === "custom_message" && leaf.customType === "pi-tavern-regenerate";
+  return leaf?.type === "custom_message" && leaf.customType === REGENERATE_CUSTOM_TYPE ? leaf : undefined;
+}
+
+function rememberRegenerateControlLeaf(ctx: any): void {
+  const leaf = getRegenerateControlLeaf(ctx);
+  if (leaf?.id) pendingRegenerateControlEntryId = leaf.id;
+}
+
+function removePendingRegenerateControlEntry(ctx: any): void {
+  const id = pendingRegenerateControlEntryId;
+  if (!id) return;
+  pendingRegenerateControlEntryId = undefined;
+
+  const sm = ctx.sessionManager;
+  const fileEntries = Array.isArray(sm?.fileEntries) ? sm.fileEntries : undefined;
+  if (!fileEntries) return;
+
+  const control = fileEntries.find((entry: any) => entry?.id === id);
+  if (!control) return;
+  const parentId = control.parentId ?? null;
+
+  for (const entry of fileEntries) {
+    if (entry?.parentId === id) entry.parentId = parentId;
+  }
+  sm.fileEntries = fileEntries.filter((entry: any) => entry?.id !== id);
+  sm.byId?.delete?.(id);
+  if (sm.leafId === id) sm.leafId = parentId;
+  sm._rewriteFile?.();
 }
 
 async function commitTurn(pi: any, ctx: any, role: "user" | "assistant" | "control"): Promise<void> {
@@ -563,11 +592,17 @@ async function registerCommands(pi: any): Promise<void> {
   });
 
   pi.registerCommand("rp-regenerate", {
-    description: "Create a branch from the previous user turn and regenerate",
+    description: "Regenerate the last assistant turn on the current branch",
     handler: async (_args: string, ctx: any) => {
       await ctx.waitForIdle?.();
       if (!(await ensureCleanForCheckout(pi, ctx))) return;
       const p = paths(ctx);
+      const branchResult = await git(pi, p.save, ["branch", "--show-current"]);
+      const branch = branchResult.stdout.trim();
+      if (!branch) {
+        ctx.ui?.notify?.("Cannot regenerate while browsing a detached commit. Switch to a branch first.", "warning");
+        return;
+      }
       const log = await git(pi, p.save, ["log", "--format=%H%x09%s", "--max-count=100"]);
       const targetLine = log.stdout
         .split("\n")
@@ -578,21 +613,19 @@ async function registerCommands(pi: any): Promise<void> {
         return;
       }
       const target = targetLine.split("\t")[0];
-      const branch = `regen/${new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "Z")}`;
-      const result = await git(pi, p.save, ["switch", "-c", branch, target]);
+      const result = await git(pi, p.save, ["reset", "--hard", target]);
       if (result.code !== 0) {
-        ctx.ui?.notify?.(`Regenerate branch failed: ${result.stderr.trim() || result.stdout.trim()}`, "error");
+        ctx.ui?.notify?.(`Regenerate reset failed: ${result.stderr.trim() || result.stdout.trim()}`, "error");
         return;
       }
       await reloadCurrentSession(ctx, `Regenerating from ${target.slice(0, 8)} on ${branch}`, async (newCtx) => {
         if (typeof newCtx.sendMessage === "function") {
           await newCtx.sendMessage(
             {
-              customType: "pi-tavern-regenerate",
-              content:
-                "Regenerate the assistant response for the immediately preceding user turn. Continue the roleplay naturally and do not mention this hidden control message.",
+              customType: REGENERATE_CUSTOM_TYPE,
+              content: "",
               display: false,
-              details: { target },
+              details: { target, transparent: true },
             },
             { triggerTurn: true },
           );
@@ -633,13 +666,24 @@ export default function piTavernExtension(pi: any) {
     return { action: "continue" };
   });
 
+  pi.on("context", async (event: any) => {
+    const messages = Array.isArray(event.messages)
+      ? event.messages.filter((message: any) => !(message?.role === "custom" && message.customType === REGENERATE_CUSTOM_TYPE))
+      : event.messages;
+    return { messages };
+  });
+
   pi.on("turn_start", async (event: any, ctx: any) => {
     if (typeof event.turnIndex === "number" && event.turnIndex !== 0) return;
-    const role = leafLooksControl(ctx) ? "control" : "user";
-    await commitTurn(pi, ctx, role);
+    if (getRegenerateControlLeaf(ctx)) {
+      rememberRegenerateControlLeaf(ctx);
+      return;
+    }
+    await commitTurn(pi, ctx, "user");
   });
 
   pi.on("agent_end", async (_event: any, ctx: any) => {
+    removePendingRegenerateControlEntry(ctx);
     await commitTurn(pi, ctx, "assistant");
   });
 

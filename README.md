@@ -141,7 +141,7 @@ Inside Pi, pi-tavern adds `/rp-*` commands:
 - `/rp-branch`
 - `/rp-files`
 - `/rp-diff`
-- `/rp-regenerate`
+- `/rp-regenerate` — reset current branch to the previous user turn and generate a new assistant turn
 
 ## Data layout
 

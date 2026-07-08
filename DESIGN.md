@@ -436,7 +436,7 @@ Harness flow:
 
 Pi's internal session tree can still exist inside the JSONL, but normal user-facing history is git commits and git branches.
 
-Pi does not have a single built-in `/regenerate` command. In stock Pi, the closest flow is `/tree`: select the previous user message, Pi moves the leaf before it and restores that message to the editor, then resubmit it. pi-tavern should provide `/rp-regenerate` as a git-first convenience: create/switch to a new branch from the previous user commit, reload the checked-out Pi session, and resubmit the same user text.
+Pi does not have a single built-in `/regenerate` command. In stock Pi, the closest flow is `/tree`: select the previous user message, Pi moves the leaf before it and restores that message to the editor, then resubmit it. pi-tavern should provide `/rp-regenerate` as a git-first convenience: reset the current branch back to the previous user commit, reload the checked-out Pi session at that user-message leaf, and trigger a new assistant turn without adding a visible or model-visible regeneration instruction. Creating a new branch is explicit via `/rp-branch`; `/rp-regenerate` updates the current branch.
 
 ## Character Cards
 
