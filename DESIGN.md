@@ -258,7 +258,7 @@ Lifecycle:
 8. When the assistant finishes the full response, harness commits `pi-session/`, `world/`, `character.json`, `manifest.json`, and `meta.json` as an **assistant commit**.
 9. The new git commit is the current turn id/checkpoint.
 
-Implementation note: with Pi SDK events, the user commit should happen after the user `message_end` has been persisted and before the first provider request. A practical hook is the first `turn_start` for a prompt (`turnIndex === 0`), because the user message is already in the session and the LLM call has not started yet. The assistant commit should happen on `agent_end`, not every internal Pi `turn_end`, so a tool-using response is captured as one assistant turn. If queued/steering messages are supported later, commit them when they are actually delivered into the conversation, not merely when queued.
+Implementation note: with Pi SDK events, the user commit should happen after the user `message_end` has been persisted and before the first provider request. In practice, set a pending-user-commit flag on `agent_start` and perform the user commit in the first `before_provider_request`; Pi extension `message_end` handlers run before session persistence. The assistant commit should happen on `agent_end`, not every internal Pi `turn_end`, so a tool-using response is captured as one assistant turn. If queued/steering messages are supported later, commit them when they are actually delivered into the conversation, not merely when queued.
 
 Metadata example:
 

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { lstat, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ALLOWED_TOOLS, HARNESS_VERSION, type SaveMeta, type TurnMeta } from "./types.ts";
 
@@ -16,6 +16,7 @@ const ALLOWED_SAVE_PATHS = ["pi-session", "world", "character.json", "manifest.j
 
 let internalSessionSwitch = false;
 let committing = false;
+let pendingUserCommit = false;
 let pendingRegenerateControlEntryId: string | undefined;
 
 function envPath(name: string, fallback: string): string {
@@ -114,6 +115,12 @@ async function headShort(pi: any, repo: string): Promise<string> {
   return head.code === 0 ? head.stdout.trim() : "unknown";
 }
 
+async function commitPiLeaf(pi: any, repo: string, commit: string): Promise<string | undefined> {
+  const result = await git(pi, repo, ["show", "-s", "--format=%B", commit]);
+  if (result.code !== 0) return undefined;
+  return result.stdout.match(/^pi-leaf:\s*(\S+)/m)?.[1];
+}
+
 function parseStatusPaths(status: string): string[] {
   const paths: string[] = [];
   for (const line of status.split("\n")) {
@@ -199,6 +206,30 @@ function removePendingRegenerateControlEntry(ctx: any): void {
   sm._rewriteFile?.();
 }
 
+function sessionSnapshotThroughLeaf(ctx: any, leafId: string | undefined): unknown[] | undefined {
+  if (!leafId) return undefined;
+  const entries = Array.isArray(ctx.sessionManager?.fileEntries) ? ctx.sessionManager.fileEntries : undefined;
+  if (!entries) return undefined;
+  const byId = new Map(entries.filter((entry: any) => entry?.id).map((entry: any) => [entry.id, entry]));
+  const pathIds = new Set<string>();
+  let current = byId.get(leafId);
+  while (current) {
+    pathIds.add(current.id);
+    current = current.parentId ? byId.get(current.parentId) : undefined;
+  }
+  if (!pathIds.has(leafId)) return undefined;
+
+  const header = entries.find((entry: any) => entry?.type === "session");
+  const pathEntries = entries.filter((entry: any) => entry?.type !== "session" && entry?.id && pathIds.has(entry.id));
+  return header ? [header, ...pathEntries] : pathEntries;
+}
+
+async function writeSessionSnapshotIfMissing(sessionFile: string | undefined, entries: unknown[] | undefined): Promise<void> {
+  if (!sessionFile || existsSync(sessionFile) || !entries?.length) return;
+  await mkdir(path.dirname(sessionFile), { recursive: true });
+  await writeFile(sessionFile, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
+}
+
 async function commitTurn(pi: any, ctx: any, role: "user" | "assistant" | "control"): Promise<void> {
   if (committing) return;
   committing = true;
@@ -226,6 +257,15 @@ async function commitTurn(pi: any, ctx: any, role: "user" | "assistant" | "contr
       manifest.harnessVersion = String(manifest.harnessVersion || HARNESS_VERSION);
       manifest.updatedAt = now;
       await writeJson(p.manifest, manifest);
+    }
+
+    // Pi may delay writing a brand-new session file until the first assistant message.
+    // Force a flush so user commits can be restored/regenerated directly. Mark it
+    // flushed too; Pi's own first-assistant flush uses exclusive create when this
+    // flag is false and would otherwise fail because we just created the file.
+    if (typeof ctx.sessionManager?._rewriteFile === "function" && ctx.sessionManager?.sessionFile) {
+      ctx.sessionManager._rewriteFile();
+      ctx.sessionManager.flushed = true;
     }
 
     const disallowed = await disallowedDirtyPaths(pi, p.save);
@@ -613,11 +653,15 @@ async function registerCommands(pi: any): Promise<void> {
         return;
       }
       const target = targetLine.split("\t")[0];
+      const targetLeaf = await commitPiLeaf(pi, p.save, target);
+      const sessionFile = ctx.sessionManager?.getSessionFile?.();
+      const sessionSnapshot = sessionSnapshotThroughLeaf(ctx, targetLeaf);
       const result = await git(pi, p.save, ["reset", "--hard", target]);
       if (result.code !== 0) {
         ctx.ui?.notify?.(`Regenerate reset failed: ${result.stderr.trim() || result.stdout.trim()}`, "error");
         return;
       }
+      await writeSessionSnapshotIfMissing(sessionFile, sessionSnapshot);
       await reloadCurrentSession(ctx, `Regenerating from ${target.slice(0, 8)} on ${branch}`, async (newCtx) => {
         if (typeof newCtx.sendMessage === "function") {
           await newCtx.sendMessage(
@@ -673,13 +717,19 @@ export default function piTavernExtension(pi: any) {
     return { messages };
   });
 
-  pi.on("turn_start", async (event: any, ctx: any) => {
-    if (typeof event.turnIndex === "number" && event.turnIndex !== 0) return;
+  pi.on("agent_start", async () => {
+    pendingUserCommit = true;
+  });
+
+  pi.on("before_provider_request", async (_event: any, ctx: any) => {
+    if (!pendingUserCommit) return undefined;
+    pendingUserCommit = false;
     if (getRegenerateControlLeaf(ctx)) {
       rememberRegenerateControlLeaf(ctx);
-      return;
+      return undefined;
     }
     await commitTurn(pi, ctx, "user");
+    return undefined;
   });
 
   pi.on("agent_end", async (_event: any, ctx: any) => {
