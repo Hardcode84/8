@@ -141,6 +141,7 @@ Inside Pi, pi-tavern adds `/rp-*` commands:
 - `/rp-branch`
 - `/rp-files`
 - `/rp-diff`
+- `/rp-undo` — reset current branch to before the last user message
 - `/rp-regenerate` — reset current branch to the previous user turn and generate a new assistant turn
 
 ## Data layout

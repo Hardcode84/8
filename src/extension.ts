@@ -115,6 +115,41 @@ async function headShort(pi: any, repo: string): Promise<string> {
   return head.code === 0 ? head.stdout.trim() : "unknown";
 }
 
+interface TurnCommit {
+  hash: string;
+  subject: string;
+  role?: "user" | "assistant" | "control";
+  piLeaf?: string;
+}
+
+function parseTurnCommitRecord(record: string): TurnCommit | undefined {
+  const trimmed = record.replace(/^\n+|\n+$/g, "");
+  if (!trimmed) return undefined;
+  const sep = trimmed.indexOf("\x1f");
+  if (sep === -1) return undefined;
+  const hash = trimmed.slice(0, sep).trim();
+  const body = trimmed.slice(sep + 1).trim();
+  if (!hash || !body) return undefined;
+  const subject = body.split("\n")[0]?.trim() ?? "";
+  const roleText = body.match(/^pi-tavern-role:\s*(\S+)/m)?.[1] ?? subject.match(/^(user|assistant|control)[: ]/i)?.[1];
+  const role = roleText?.toLowerCase() as TurnCommit["role"] | undefined;
+  return {
+    hash,
+    subject,
+    role: role === "user" || role === "assistant" || role === "control" ? role : undefined,
+    piLeaf: body.match(/^pi-leaf:\s*(\S+)/m)?.[1],
+  };
+}
+
+async function turnCommits(pi: any, repo: string, maxCount = 100): Promise<TurnCommit[]> {
+  const result = await git(pi, repo, ["log", `--max-count=${maxCount}`, "--format=%H%x1f%B%x1e"]);
+  if (result.code !== 0) return [];
+  return result.stdout
+    .split("\x1e")
+    .map(parseTurnCommitRecord)
+    .filter((commit): commit is TurnCommit => !!commit);
+}
+
 async function commitPiLeaf(pi: any, repo: string, commit: string): Promise<string | undefined> {
   const result = await git(pi, repo, ["show", "-s", "--format=%B", commit]);
   if (result.code !== 0) return undefined;
@@ -207,9 +242,10 @@ function removePendingRegenerateControlEntry(ctx: any): void {
 }
 
 function sessionSnapshotThroughLeaf(ctx: any, leafId: string | undefined): unknown[] | undefined {
-  if (!leafId) return undefined;
   const entries = Array.isArray(ctx.sessionManager?.fileEntries) ? ctx.sessionManager.fileEntries : undefined;
   if (!entries) return undefined;
+  const header = entries.find((entry: any) => entry?.type === "session");
+  if (!leafId) return header ? [header] : undefined;
   const byId = new Map(entries.filter((entry: any) => entry?.id).map((entry: any) => [entry.id, entry]));
   const pathIds = new Set<string>();
   let current = byId.get(leafId);
@@ -219,7 +255,6 @@ function sessionSnapshotThroughLeaf(ctx: any, leafId: string | undefined): unkno
   }
   if (!pathIds.has(leafId)) return undefined;
 
-  const header = entries.find((entry: any) => entry?.type === "session");
   const pathEntries = entries.filter((entry: any) => entry?.type !== "session" && entry?.id && pathIds.has(entry.id));
   return header ? [header, ...pathEntries] : pathEntries;
 }
@@ -631,6 +666,45 @@ async function registerCommands(pi: any): Promise<void> {
     },
   });
 
+  pi.registerCommand("rp-undo", {
+    description: "Undo the last user message and any following assistant turn on the current branch",
+    handler: async (_args: string, ctx: any) => {
+      await ctx.waitForIdle?.();
+      if (!(await ensureCleanForCheckout(pi, ctx))) return;
+      const p = paths(ctx);
+      const branchResult = await git(pi, p.save, ["branch", "--show-current"]);
+      const branch = branchResult.stdout.trim();
+      if (!branch) {
+        ctx.ui?.notify?.("Cannot undo while browsing a detached commit. Switch to a branch first.", "warning");
+        return;
+      }
+
+      const userCommit = (await turnCommits(pi, p.save)).find((commit) => commit.role === "user");
+      if (!userCommit) {
+        ctx.ui?.notify?.("No user turn commit found to undo", "warning");
+        return;
+      }
+
+      const parent = await git(pi, p.save, ["rev-parse", `${userCommit.hash}^`]);
+      if (parent.code !== 0 || !parent.stdout.trim()) {
+        ctx.ui?.notify?.("Cannot undo the first commit on this branch", "warning");
+        return;
+      }
+      const target = parent.stdout.trim();
+      const targetLeaf = await commitPiLeaf(pi, p.save, target);
+      const sessionFile = ctx.sessionManager?.getSessionFile?.();
+      const sessionSnapshot = sessionSnapshotThroughLeaf(ctx, targetLeaf);
+
+      const result = await git(pi, p.save, ["reset", "--hard", target]);
+      if (result.code !== 0) {
+        ctx.ui?.notify?.(`Undo failed: ${result.stderr.trim() || result.stdout.trim()}`, "error");
+        return;
+      }
+      await writeSessionSnapshotIfMissing(sessionFile, sessionSnapshot);
+      await reloadCurrentSession(ctx, `Undid last user turn on ${branch}; reset to ${target.slice(0, 8)}`);
+    },
+  });
+
   pi.registerCommand("rp-regenerate", {
     description: "Regenerate the last assistant turn on the current branch",
     handler: async (_args: string, ctx: any) => {
@@ -643,17 +717,13 @@ async function registerCommands(pi: any): Promise<void> {
         ctx.ui?.notify?.("Cannot regenerate while browsing a detached commit. Switch to a branch first.", "warning");
         return;
       }
-      const log = await git(pi, p.save, ["log", "--format=%H%x09%s", "--max-count=100"]);
-      const targetLine = log.stdout
-        .split("\n")
-        .filter(Boolean)
-        .find((line) => /^user[: ]/i.test(line.split("\t")[1] ?? ""));
-      if (!targetLine) {
+      const userCommit = (await turnCommits(pi, p.save)).find((commit) => commit.role === "user");
+      if (!userCommit) {
         ctx.ui?.notify?.("No previous user turn commit found", "warning");
         return;
       }
-      const target = targetLine.split("\t")[0];
-      const targetLeaf = await commitPiLeaf(pi, p.save, target);
+      const target = userCommit.hash;
+      const targetLeaf = userCommit.piLeaf ?? (await commitPiLeaf(pi, p.save, target));
       const sessionFile = ctx.sessionManager?.getSessionFile?.();
       const sessionSnapshot = sessionSnapshotThroughLeaf(ctx, targetLeaf);
       const result = await git(pi, p.save, ["reset", "--hard", target]);

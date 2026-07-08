@@ -481,6 +481,7 @@ Basic commands:
 /rp-log                 show git-backed turn log
 /rp-branches            show conversation branches
 /rp-checkout            choose previous turn or branch
+/rp-undo                undo the last user message and following assistant turn
 /rp-regenerate          regenerate from the previous user turn
 /rp-files               browse world files
 /rp-diff                show world diff since previous turn
