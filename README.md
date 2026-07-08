@@ -2,6 +2,45 @@
 
 Terminal roleplaying harness on top of Pi's native TUI.
 
+## Install
+
+From the repo root:
+
+```bash
+bun install -g .
+```
+
+Make sure Bun's global bin directory is on your `PATH`:
+
+```bash
+export PATH="$HOME/.bun/bin:$PATH"
+```
+
+Then run pi-tavern directly:
+
+```bash
+pi-tavern --help
+pi-tavern new alice --model openrouter/anthropic/claude-sonnet-4
+```
+
+For local development without a global install, keep using:
+
+```bash
+bun run bin/pi-tavern ...
+```
+
+## Uninstall
+
+```bash
+bun remove -g pi-tavern
+```
+
+If you manually created a symlink instead, remove it:
+
+```bash
+rm -f ~/.bun/bin/pi-tavern
+```
+
 ## Quick start
 
 ```bash
