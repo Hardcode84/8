@@ -219,18 +219,14 @@ function rememberRegenerateControlLeaf(ctx: any): void {
   if (leaf?.id) pendingRegenerateControlEntryId = leaf.id;
 }
 
-function removePendingRegenerateControlEntry(ctx: any): void {
-  const id = pendingRegenerateControlEntryId;
-  if (!id) return;
-  pendingRegenerateControlEntryId = undefined;
-
+function removeSessionEntry(ctx: any, id: string): void {
   const sm = ctx.sessionManager;
   const fileEntries = Array.isArray(sm?.fileEntries) ? sm.fileEntries : undefined;
   if (!fileEntries) return;
 
-  const control = fileEntries.find((entry: any) => entry?.id === id);
-  if (!control) return;
-  const parentId = control.parentId ?? null;
+  const entryToRemove = fileEntries.find((entry: any) => entry?.id === id);
+  if (!entryToRemove) return;
+  const parentId = entryToRemove.parentId ?? null;
 
   for (const entry of fileEntries) {
     if (entry?.parentId === id) entry.parentId = parentId;
@@ -239,6 +235,21 @@ function removePendingRegenerateControlEntry(ctx: any): void {
   sm.byId?.delete?.(id);
   if (sm.leafId === id) sm.leafId = parentId;
   sm._rewriteFile?.();
+}
+
+function removePendingRegenerateControlEntry(ctx: any): void {
+  const id = pendingRegenerateControlEntryId;
+  if (!id) return;
+  pendingRegenerateControlEntryId = undefined;
+  removeSessionEntry(ctx, id);
+}
+
+function removeRedundantSessionNameLeaf(ctx: any, desiredName: string): void {
+  const leaf = typeof ctx.sessionManager?.getLeafEntry === "function" ? ctx.sessionManager.getLeafEntry() : undefined;
+  if (leaf?.type !== "session_info" || leaf.name !== desiredName || !leaf.id) return;
+  const branch = typeof ctx.sessionManager?.getBranch === "function" ? ctx.sessionManager.getBranch() : [];
+  const hasEarlierSameName = branch.some((entry: any) => entry?.id !== leaf.id && entry?.type === "session_info" && entry.name === desiredName);
+  if (hasEarlierSameName) removeSessionEntry(ctx, leaf.id);
 }
 
 function sessionSnapshotThroughLeaf(ctx: any, leafId: string | undefined): unknown[] | undefined {
@@ -762,8 +773,10 @@ export default function piTavernExtension(pi: any) {
     const p = paths(ctx);
     const branch = await currentBranch(pi, p.save).catch(() => "unknown");
     const head = await headShort(pi, p.save).catch(() => "unknown");
+    const sessionName = `pi-tavern:${p.saveId}`;
     pi.setActiveTools?.([...ALLOWED_TOOLS]);
-    pi.setSessionName?.(`pi-tavern:${p.saveId}`);
+    removeRedundantSessionNameLeaf(ctx, sessionName);
+    if (pi.getSessionName?.() !== sessionName) pi.setSessionName?.(sessionName);
     ctx.ui?.setStatus?.(STATUS_KEY, `rp ${p.saveId} ${branch}@${head}`);
     if (path.resolve(ctx.cwd) !== path.resolve(p.world)) {
       ctx.ui?.notify?.(`pi-tavern expected cwd ${p.world}, got ${ctx.cwd}`, "warning");
